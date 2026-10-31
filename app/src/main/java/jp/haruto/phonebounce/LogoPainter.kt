@@ -39,13 +39,56 @@ class LogoPainter {
     /** 「画像」スタイルの形（白＋アルファ）。null なら、クラシックで代用 */
     var image: Bitmap? = null
 
+    /** 文字の下の飾り。当たり判定の枠（aspect・heightScale）もこれに合わせて変わる */
+    var decor: Decor = Decor.DISC
+
     private var cacheKey = ""
     private var cache: Bitmap? = null
 
     /** 枠の幅/高さ。画像スタイルは画像の比率、ほかは元のロゴの比率 */
-    fun aspect(style: LogoStyle): Float {
+    fun aspect(style: LogoStyle, label: String = "DVD"): Float {
         val im = image
-        return if (style == LogoStyle.IMAGE && im != null) (im.width.toFloat() / im.height).coerceIn(0.3f, 4f) else LogoGeometry.ASPECT
+        if (style == LogoStyle.IMAGE && im != null) return (im.width.toFloat() / im.height).coerceIn(0.3f, 4f)
+        if (decor != Decor.NONE) return LogoGeometry.ASPECT
+        // 飾りなし: 枠は文字のインクにぴったり（幅は文字の長さで決まる。字の左右の余白は含めない）
+        return (ink(label).first / 100f).coerceIn(0.8f, 8f)
+    }
+
+    private var inkLabel: String? = null
+    private var inkSize = Pair(100f, 0f)
+
+    /** 文字（高さ 100 に正規化）の、実際に塗られる幅と、描く中心からのずれ。斜体・字の余白も含めて、いちど描いて測る */
+    private fun ink(label: String): Pair<Float, Float> {
+        if (label == inkLabel) return inkSize
+        text.style = Paint.Style.FILL
+        text.textSize = 100f
+        text.getTextBounds("H", 0, 1, b)
+        text.textSize = 100f * 100f / max(1, b.height())
+        val bw = (text.measureText(label) + 160f).toInt()
+        val bm = Bitmap.createBitmap(bw, 180, Bitmap.Config.ARGB_8888)
+        text.color = Color.WHITE; text.alpha = 255
+        Canvas(bm).drawText(label, bw / 2f, 130f, text)
+        var l = bw; var r = -1
+        val col = IntArray(180)
+        for (x in 0 until bw) {
+            bm.getPixels(col, 0, 1, x, 0, 1, 180)
+            if (col.any { Color.alpha(it) > 60 }) { if (x < l) l = x; r = x }
+        }
+        bm.recycle()
+        inkLabel = label
+        inkSize = if (r < l) Pair(100f, 0f) else Pair((r - l + 1).toFloat(), (l + r + 1) / 2f - bw / 2f)
+        return inkSize
+    }
+
+    /** 「ロゴの大きさ」は、飾りがあるときの全体の高さを基準にする。飾りなしは文字だけなので、文字が同じ大きさになるよう枠を低くする */
+    fun heightScale(style: LogoStyle): Float =
+        if (style == LogoStyle.IMAGE && image != null) 1f else if (decor == Decor.NONE) LogoGeometry.TEXT_BOTTOM else 1f
+
+    /** 飾りの上端（枠の高さに対する割合） */
+    private fun decorTop() = when (decor) {
+        Decor.LINE -> 0.86f
+        Decor.PLATE -> 0.66f
+        else -> LogoGeometry.DISC_TOP
     }
 
     /** 枠の外へはみ出す量（光・フチ・影）。再描画の範囲に使う */
@@ -70,31 +113,43 @@ class LogoPainter {
 
     // ---------------- 形 ----------------
 
-    /** 円盤（外側の楕円から、真ん中の穴を抜いたもの） */
+    /** 文字の下の飾りの形（円盤・下線・リング・板。なしは空） */
     private fun discPath(x: Float, y: Float, w: Float, h: Float, p: Path) {
         p.reset()
         p.fillType = Path.FillType.EVEN_ODD
-        val top = y + h * LogoGeometry.DISC_TOP
+        val top = y + h * decorTop()
         val dh = y + h - top
-        p.addOval(x, top, x + w, y + h, Path.Direction.CW)
-        val hw = w * LogoGeometry.HOLE_W
-        val hh = dh * LogoGeometry.HOLE_H_OF_DISC
-        p.addOval(x + (w - hw) / 2f, top + (dh - hh) / 2f, x + (w + hw) / 2f, top + (dh + hh) / 2f, Path.Direction.CW)
+        when (decor) {
+            Decor.NONE -> {}
+            Decor.DISC, Decor.RING -> {
+                p.addOval(x, top, x + w, y + h, Path.Direction.CW)
+                val hw = w * (if (decor == Decor.RING) 0.62f else LogoGeometry.HOLE_W)
+                val hh = dh * (if (decor == Decor.RING) 0.58f else LogoGeometry.HOLE_H_OF_DISC)
+                p.addOval(x + (w - hw) / 2f, top + (dh - hh) / 2f, x + (w + hw) / 2f, top + (dh + hh) / 2f, Path.Direction.CW)
+            }
+            Decor.LINE -> p.addRoundRect(x, top, x + w, y + h, dh / 2f, dh / 2f, Path.Direction.CW)
+            Decor.PLATE -> p.addRoundRect(x, top, x + w, y + h, dh * 0.32f, dh * 0.32f, Path.Direction.CW)
+        }
     }
 
     /** 文字の大きさと位置を決める。文字の高さは帯に合わせ、横が広すぎるときだけ縮める。戻り値は (中心x, ベースライン) */
     private fun layoutText(x: Float, y: Float, w: Float, h: Float, label: String): Pair<Float, Float> {
-        val band = h * LogoGeometry.TEXT_BOTTOM
+        val band = if (decor == Decor.NONE) h else h * LogoGeometry.TEXT_BOTTOM
         text.style = Paint.Style.FILL
         text.textSize = band
         text.getTextBounds("H", 0, 1, b)
         val cap = max(1, b.height()).toFloat()
         var size = band * band / cap
         text.textSize = size
-        val maxW = w * LogoGeometry.TEXT_WIDTH
-        val tw = text.measureText(label)
+        val maxW = if (decor == Decor.NONE) w else w * LogoGeometry.TEXT_WIDTH
+        val tw = if (decor == Decor.NONE) ink(label).first * band / 100f else text.measureText(label)
         if (tw > maxW) { size *= maxW / tw; text.textSize = size }
         text.getTextBounds("H", 0, 1, b)
+        if (decor == Decor.NONE) {   // 実際に塗られる範囲の中心を、枠の中心に合わせる
+            val (iw, off) = ink(label)
+            val k = band / 100f * (size / (band * band / cap))
+            return Pair(x + w / 2f - off * k, y + band)
+        }
         // 斜体は、文字の上が右へ寄る。見た目の中心が合うように左へ戻す
         return Pair(x + w / 2f - b.height() * -LogoGeometry.SKEW / 2f, y + band)
     }
@@ -139,7 +194,7 @@ class LogoPainter {
         val pad = 3
         val bw = ceil(w).toInt() + pad * 2
         val bh = ceil(h).toInt() + pad * 2
-        val bm = cached("crt|$color|$label|$bw|$bh") {
+        val bm = cached("crt|$color|$label|$bw|$bh|$decor") {
             val m = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
             val cv = Canvas(m)
             val f = max(1.2f, w * 0.014f)
@@ -161,7 +216,7 @@ class LogoPainter {
     private fun pixel(c: Canvas, x: Float, y: Float, w: Float, h: Float, color: Int, alpha: Int, label: String) {
         val pw = 60
         val ph = max(8, (pw / (w / h)).roundToInt())
-        val bm = cached("pix|$color|$label|$pw|$ph") {
+        val bm = cached("pix|$color|$label|$pw|$ph|$decor") {
             val m = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
             classic(Canvas(m), 0f, 0f, pw.toFloat(), ph.toFloat(), color, 255, label)
             val px = IntArray(pw * ph)
@@ -199,13 +254,14 @@ class LogoPainter {
     private fun spin(c: Canvas, x: Float, y: Float, w: Float, h: Float, color: Int, alpha: Int, label: String, t: Float) {
         classic(c, x, y, w, h, color, alpha, label)
         discPath(x, y, w, h, disc)
-        val top = y + h * LogoGeometry.DISC_TOP
+        if (decor == Decor.NONE) return
+        val top = y + h * decorTop()
         val dh = y + h - top
         c.save()
         c.clipPath(disc)
         // 円盤の溝（うすい線）
         line.color = Color.BLACK; line.strokeWidth = max(1f, h * 0.012f); line.alpha = (alpha * 0.16f).roundToInt()
-        for (k in listOf(0.82f, 0.64f)) {
+        for (k in if (decor == Decor.DISC) listOf(0.82f, 0.64f) else emptyList()) {
             val ww = w * k
             val hh = dh * k
             c.drawOval(x + (w - ww) / 2f, top + (dh - hh) / 2f, x + (w + ww) / 2f, top + (dh + hh) / 2f, line)

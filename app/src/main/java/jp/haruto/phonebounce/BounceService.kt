@@ -145,12 +145,14 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         cfg = c
         val d = resources.displayMetrics.density
         params.speed = c.speedDp * d
-        params.logoH = c.logoHeightDp * d
+        view?.painter?.decor = c.decor
         if (c.imageVersion != loadedImageVersion) {   // 「画像」スタイルの画像を読み直す
             view?.painter?.image = CustomLogo.loadMask(this)
             loadedImageVersion = c.imageVersion
         }
-        params.logoW = params.logoH * (view?.painter?.aspect(c.style) ?: jp.haruto.phonebounce.core.LogoGeometry.ASPECT)
+        val painter = view?.painter
+        params.logoH = c.logoHeightDp * d * (painter?.heightScale(c.style) ?: 1f)
+        params.logoW = params.logoH * (painter?.aspect(c.style, c.label) ?: jp.haruto.phonebounce.core.LogoGeometry.ASPECT)
         params.interference = c.interference
         params.colorMode = c.colorMode
         params.intrudeSeconds = c.intrudeSeconds

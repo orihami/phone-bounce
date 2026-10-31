@@ -20,7 +20,29 @@ class StylePreview(ctx: Context, val style: LogoStyle, image: Bitmap?) : View(ct
     var chosen = false
         set(v) { field = v; invalidate() }
 
-    init { isClickable = true }
+    private var decor = Decor.DISC
+    private var label = "DVD"
+    private val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> reload() }
+
+    init { isClickable = true; reload() }
+
+    private fun reload() {
+        val c = AppSettings.load(context)
+        decor = c.decor; label = c.label
+        painter.decor = decor
+        invalidate()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        AppSettings.prefs(context).registerOnSharedPreferenceChangeListener(listener)
+        reload()
+    }
+
+    override fun onDetachedFromWindow() {
+        AppSettings.prefs(context).unregisterOnSharedPreferenceChangeListener(listener)
+        super.onDetachedFromWindow()
+    }
 
     fun setImage(bm: Bitmap?) { painter.image = bm; invalidate() }
 
@@ -44,14 +66,14 @@ class StylePreview(ctx: Context, val style: LogoStyle, image: Bitmap?) : View(ct
         c.drawRoundRect(box.left + border.strokeWidth / 2, box.top + border.strokeWidth / 2,
             box.right - border.strokeWidth / 2, box.bottom - border.strokeWidth / 2, 12 * d, 12 * d, border)
 
-        val lh = height * 0.42f
-        val lw = lh * painter.aspect(style)
+        val lh = height * 0.42f * painter.heightScale(style)
+        val lw = lh * painter.aspect(style, label)
         val maxW = width * 0.72f
         val k = if (lw > maxW) maxW / lw else 1f
         val w = lw * k
         val h = lh * k
         val t = SystemClock.uptimeMillis() / 1000f
-        painter.draw(c, (width - w) / 2f, height * 0.12f + (lh - h) / 2f, w, h, style, sample(), 255, "DVD", t)
+        painter.draw(c, (width - w) / 2f, height * 0.12f + height * 0.42f / 2f - h / 2f, w, h, style, sample(), 255, label, t)
 
         title.textSize = 14 * d
         note.textSize = 11 * d

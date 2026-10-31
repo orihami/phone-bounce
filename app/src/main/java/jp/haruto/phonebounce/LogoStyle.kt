@@ -10,3 +10,12 @@ enum class LogoStyle(val title: String, val note: String) {
     SPIN("ディスク回転", "円盤に光が走る"),
     IMAGE("画像", "自分のPNGの形"),
 }
+
+/** ロゴの下の飾り（元は円盤）。文字だけにもできる。当たり判定の枠は、飾りに合わせてぴったりにする（LogoPainter.aspect） */
+enum class Decor(val title: String) {
+    DISC("円盤"),
+    NONE("なし"),
+    LINE("下線"),
+    RING("リング"),
+    PLATE("板"),
+}

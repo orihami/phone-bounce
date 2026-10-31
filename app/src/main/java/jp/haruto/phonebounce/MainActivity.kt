@@ -175,6 +175,12 @@ class MainActivity : Activity() {
                 presets.addView(chip(context, t) { labelEdit.setText(t) }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
             }
             addView(presets)
+
+            addView(label(context, "文字の下の飾り", 13.5f, Pal.SUB).apply { setPadding(0, dp(16), 0, dp(6)) })
+            addView(Segmented(context, Decor.values().map { it.title to it }, s.decor) {
+                p.edit().putString(AppSettings.DECOR, it.name).apply()
+            })
+            addView(label(context, "当たり判定は、見えている形にぴったり合わせます（「なし」は文字だけの枠になります）。", 12f, Pal.SUB).apply { setPadding(0, dp(8), 0, 0) })
         }
 
         // 動き

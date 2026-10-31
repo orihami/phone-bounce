@@ -24,6 +24,7 @@ class AppSettings(
     val paused: Boolean,
     val label: String,
     val style: LogoStyle,
+    val decor: Decor,            // 文字の下の飾り（円盤・なし・下線・リング・板）
     val imageVersion: Int,       // 「画像」スタイルの画像を差し替えるたびに増える（常駐の本体が読み直す合図）
 ) {
     companion object {
@@ -45,6 +46,7 @@ class AppSettings(
         const val PAUSED = "paused"
         const val LABEL = "label"
         const val STYLE = "style"
+        const val DECOR = "decor"
         const val IMG_VER = "imageVersion"
 
         fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -69,6 +71,7 @@ class AppSettings(
                 paused = p.getBoolean(PAUSED, false),
                 label = (p.getString(LABEL, null) ?: "DVD").ifBlank { "DVD" }.take(12),
                 style = enumOf(p.getString(STYLE, null), LogoStyle.CLASSIC),
+                decor = enumOf(p.getString(DECOR, null), Decor.DISC),
                 imageVersion = p.getInt(IMG_VER, 0),
             )
         }

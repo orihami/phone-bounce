@@ -221,8 +221,9 @@ class HeroView(ctx: Context) : View(ctx) {
         if (width == 0) return
         val d = resources.displayMetrics.density
         params.speed = (cfg.speedDp * 0.8f + 30f) * d
-        params.logoH = (cfg.logoHeightDp * 0.9f).coerceIn(28f, 64f) * d
-        params.logoW = params.logoH * painter.aspect(cfg.style)
+        painter.decor = cfg.decor
+        params.logoH = (cfg.logoHeightDp * 0.9f).coerceIn(28f, 64f) * d * painter.heightScale(cfg.style)
+        params.logoW = params.logoH * painter.aspect(cfg.style, cfg.label)
         params.colorMode = cfg.colorMode
     }
 

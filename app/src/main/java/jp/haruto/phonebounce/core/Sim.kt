@@ -81,7 +81,7 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         private set
 
     private var lastList: List<Obstacle>? = null
-    private var ghosts: Set<Obstacle> = emptySet()
+    private var ghosts: MutableSet<Obstacle> = HashSet()
 
     fun logo(p: Params): Box = Box(x, y, x + p.logoW, y + p.logoH)
 
@@ -100,7 +100,7 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         prev = emptyMap()
         sinceChange.clear()
         lastList = null
-        ghosts = emptySet()
+        ghosts = HashSet()
         ghosting = false
         colorIdx = rnd.nextInt(PALETTE.size)
     }
@@ -241,7 +241,10 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         else if (x + w > bounds.r) { x = bounds.r - w; vx = -abs(vx); hx = true }
         for (o in obs) {
             if (!blocked(o) || !logo(p).overlaps(o.rect)) continue
-            if (vx > 0f) { x = o.rect.l - w; vx = -abs(vx) } else { x = o.rect.r; vx = abs(vx) }
+            val nx = if (vx > 0f) o.rect.l - w else o.rect.r
+            // 跳ね返った先が画面の外（部品と画面の端のすき間がロゴより狭い）なら、反射せず、その部品はすり抜ける
+            if (o.soft && (nx < bounds.l || nx + w > bounds.r)) { ghosts.add(o); continue }
+            x = nx; vx = if (vx > 0f) -abs(vx) else abs(vx)
             hx = true
         }
 
@@ -251,7 +254,9 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         else if (y + h > bounds.b) { y = bounds.b - h; vy = -abs(vy); hy = true }
         for (o in obs) {
             if (!blocked(o) || !logo(p).overlaps(o.rect)) continue
-            if (vy > 0f) { y = o.rect.t - h; vy = -abs(vy) } else { y = o.rect.b; vy = abs(vy) }
+            val ny = if (vy > 0f) o.rect.t - h else o.rect.b
+            if (o.soft && (ny < bounds.t || ny + h > bounds.b)) { ghosts.add(o); continue }
+            y = ny; vy = if (vy > 0f) -abs(vy) else abs(vy)
             hy = true
         }
         if (hx || hy) onBounce(hx, hy)

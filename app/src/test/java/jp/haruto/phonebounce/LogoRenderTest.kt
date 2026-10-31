@@ -115,4 +115,56 @@ class LogoRenderTest {
         assertTrue(Color.alpha(mask.getPixel(2, 5)) > 250)     // 明るい所 → 形
         assertTrue(Color.alpha(mask.getPixel(8, 5)) < 5)       // 暗い所 → 抜く
     }
+
+    /**
+     * 当たり判定の枠（aspect × 高さ）と、見えている形が合っているか。
+     * 枠からはみ出す・枠の端に何も無い（見えない余白で跳ね返る）と、ぶつかり方がおかしく感じるので、飾り×文字の全部で確かめる。
+     */
+    @Test fun theHitBoxHugsTheVisibleShapeForEveryDecorAndLabel() {
+        val pad = 40
+        val h = 240
+        for (decor in Decor.values()) for (label in listOf("DVD", "4K", "VHS", "LD", "BD")) for (style in listOf(LogoStyle.CLASSIC, LogoStyle.PIXEL, LogoStyle.SPIN)) {
+            val painter = LogoPainter().also { it.decor = decor }
+            val w = (h * painter.aspect(style, label)).toInt()
+            val bm = Bitmap.createBitmap(w + pad * 2, h + pad * 2, Bitmap.Config.ARGB_8888)
+            painter.draw(Canvas(bm), pad.toFloat(), pad.toFloat(), w.toFloat(), h.toFloat(), style, Color.WHITE, 255, label, 0f)
+            var l = Int.MAX_VALUE; var t = Int.MAX_VALUE; var r = -1; var b = -1
+            for (y in 0 until bm.height) for (x in 0 until bm.width) if (Color.alpha(bm.getPixel(x, y)) > 128) {
+                if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y
+            }
+            val tag = "${decor.name}/$label/${style.name}"
+            val tol = (h * 0.035f).toInt() + 1 + (if (style == LogoStyle.PIXEL) (w / 60f).toInt() else 0)   // ドットは、1ドット分のずれが出る
+            assertTrue("$tag: 左に見えない余白 ${l - pad}", l - pad <= tol)
+            assertTrue("$tag: 右に見えない余白 ${pad + w - 1 - r}", pad + w - 1 - r <= tol)
+            assertTrue("$tag: 上に見えない余白 ${t - pad}", t - pad <= tol)
+            assertTrue("$tag: 下に見えない余白 ${pad + h - 1 - b}", pad + h - 1 - b <= tol)
+            assertTrue("$tag: 左へはみ出し ${pad - l}", pad - l <= tol)
+            assertTrue("$tag: 右へはみ出し ${r - (pad + w - 1)}", r - (pad + w - 1) <= tol)
+            assertTrue("$tag: 上へはみ出し ${pad - t}", pad - t <= tol)
+            assertTrue("$tag: 下へはみ出し ${b - (pad + h - 1)}", b - (pad + h - 1) <= tol)
+        }
+    }
+
+    /** 飾りの見本を並べた画像（PB_PREVIEW_DIR があれば書き出す） */
+    @Test fun decorContactSheet() {
+        val ds = Decor.values()
+        val cw = 330; val chh = 190
+        val sheet = Bitmap.createBitmap(ds.size * cw, chh * 2, Bitmap.Config.ARGB_8888)
+        val c = Canvas(sheet); c.drawColor(bg)
+        val cap = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFB8B8C4.toInt(); textSize = 18f }
+        val box = Paint().apply { style = Paint.Style.STROKE; color = 0xFFFF2D95.toInt(); strokeWidth = 1.5f }
+        for ((i, d) in ds.withIndex()) for ((row, st) in listOf(LogoStyle.CLASSIC, LogoStyle.NEON).withIndex()) {
+            val painter = LogoPainter().also { it.decor = d }
+            val h = 90f * painter.heightScale(st)
+            val w = h * painter.aspect(st, "DVD")
+            val x = i * cw + (cw - w) / 2f; val y = row * chh + 40f + (90f - h) / 2f
+            painter.draw(c, x, y, w, h, st, 0xFF3CE65A.toInt(), 255, "DVD", 0.9f)
+            c.drawRect(x, y, x + w, y + h, box)   // 当たり判定の枠
+            c.drawText("${d.title}（${st.title}）", i * cw + 14f, row * chh + chh - 14f, cap)
+        }
+        System.getenv("PB_PREVIEW_DIR")?.let { dir ->
+            File(dir).mkdirs()
+            FileOutputStream(File(dir, "decor.png")).use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+    }
 }
