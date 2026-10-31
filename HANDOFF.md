@@ -6,19 +6,16 @@
 - **作業場所**: ko-pi（Claude Code）
 
 ## 現在の状態
-- 0.1.0 を作成。動きの核（`core/Sim`）はユニットテスト 13 件が通る（わざと壊すと失敗することも確認）。`assembleDebug` で APK が作れる
+- **0.1.0 を公開済み**（2026-10-31）。CI（テスト13件・ビルド・署名の確認）が通り、Release を作成。固定リンク: https://github.com/orihami/phone-bounce/releases/latest/download/PhoneBounce.apk 。署名の証明書は DreamCamera と同じ（確認済み）
+- リポジトリ・デプロイキー・Secret `DEBUG_KEYSTORE_B64` は、Claude が `gh` で作成・登録した（ユーザーが GitHub のログインを ko-pi に許可）
 - 機能: 反射／押し出し／侵入／脱出、キーボード・分割画面・小窓を壁にする、常駐（アクセシビリティサービス）、クイック設定のタイル、設定の画面
-- GitHub への初回 push と、タグ 0.1.0 によるリリースは、ユーザーの準備待ち（下）
 
 ## ユーザーに頼んでいること
-1. GitHub に空の公開リポジトリ `orihami/phone-bounce` を作る
-2. ko-pi が作った専用のデプロイキー（公開鍵）を、そのリポジトリの Deploy keys に **書き込み許可つき**で登録する
-3. Secret `DEBUG_KEYSTORE_B64` を登録する（DreamCamera と同じ鍵。NAS の `.claude_tmp/android-build/android-user/debug.keystore` を base64 にしたもの）
+- **実機で確認**: APK を入れる → アクセシビリティをオンにする → ロゴが動くか → キーボードを出してロゴが避けるか → 再起動後も自動で動くか → 電池の減り方。結果を教えてもらう
 
 ## 次にやること（優先順）
-1. 初回 push → Actions の通過を確認 → タグ `0.1.0` で Release → ユーザーに固定リンクを渡す
-2. **実機で確認**（ユーザー）: オンにできるか／再起動後も自動で動くか／キーボードを出すとロゴがキーボードを避けるか／分割画面で動くか／電池の減り方
-3. 実機の結果で直す。とくに、窓の位置を読む間隔（今は 20 回/秒）と、キーボードがせり上がるときの追従
+1. 実機の結果で直す。とくに、窓の位置を読む間隔（今は 20 回/秒）と、キーボードがせり上がるときの追従
+2. 直したら、versionCode を +1、versionName を上げ、`docs/releases/<版>.md` を書いて、タグ push（手順は CLAUDE.md）
 
 ## 未検証
 - 実機での動作すべて（`BounceService` の重ね表示・窓の取得・自動起動・電池）。`core` の動きだけが、PC 上のテストで確認済み

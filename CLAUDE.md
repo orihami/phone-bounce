@@ -24,7 +24,7 @@ DVD ロゴが、スマホで見えているウィンドウの枠（キーボー�
 
 ## ビルドとリリース
 - テスト: `./gradlew testDebugUnitTest`、APK: `./gradlew assembleDebug`（JDK 17+、Android SDK platform 35 / build-tools 35.0.0）
-- 署名は Secret `DEBUG_KEYSTORE_B64`（DreamCamera と同じ鍵。ワークフローが証明書を確認して止める）。Secret はユーザーが自分で登録する
+- 署名は Secret `DEBUG_KEYSTORE_B64`（DreamCamera と同じ鍵。ワークフローが証明書を確認して止める）。Secret は登録済み（2026-10-31）
 - リリース手順:
   1. `app/build.gradle.kts` の versionCode を +1、versionName を新しい版に
   2. `docs/releases/<版>.md` に変更点（日本語・ユーザー向け）
