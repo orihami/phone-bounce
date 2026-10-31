@@ -10,7 +10,6 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
-import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -21,6 +20,7 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import jp.haruto.phonebounce.core.ColorMode
 import jp.haruto.phonebounce.core.Interference
 
@@ -29,6 +29,8 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var battery: TextView
     private lateinit var root: LinearLayout
+    private lateinit var labelEdit: EditText
+    private val previews = ArrayList<StylePreview>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +57,32 @@ class MainActivity : Activity() {
         status.setTextColor(if (on) 0xFF3DFF7A.toInt() else 0xFFFFD400.toInt())
         val ignoring = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         battery.text = if (ignoring) "電池の最適化：除外済み" else "電池の最適化：まだ（除外すると、システムに止められにくくなります）"
+    }
+
+    // ---------------- 画像を選ぶ ----------------
+
+    private fun pickImage() {
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" },
+            REQ_IMAGE,
+        )
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_IMAGE || resultCode != RESULT_OK) return
+        val uri: Uri = data?.data ?: return
+        if (CustomLogo.saveFrom(this, uri)) {
+            val p = AppSettings.prefs(this)
+            p.edit().putInt(AppSettings.IMG_VER, p.getInt(AppSettings.IMG_VER, 0) + 1)
+                .putString(AppSettings.STYLE, LogoStyle.IMAGE.name).apply()
+            val mask = CustomLogo.loadMask(this)
+            previews.forEach { if (it.style == LogoStyle.IMAGE) it.setImage(mask); it.chosen = it.style == LogoStyle.IMAGE }
+            Toast.makeText(this, "画像を設定しました（明るい所・不透明な所がロゴの形になります）", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, "画像を読み込めませんでした", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ---------------- 画面づくり ----------------
@@ -86,12 +114,14 @@ class MainActivity : Activity() {
         }
         note("クイック設定のパネルに「跳ねるロゴ」のタイルを足すと、いつでも一時停止・再開できます。")
 
-        section("基本")
-        switch("一時停止", s.paused) { p.edit().putBoolean(AppSettings.PAUSED, it).apply() }
-        slider("速さ", 20f, 400f, 5f, s.speedDp, "dp/秒") { p.edit().putFloat(AppSettings.SPEED, it).apply() }
-        slider("ロゴの大きさ（高さ）", 24f, 120f, 2f, s.logoHeightDp, "dp") { p.edit().putFloat(AppSettings.SIZE, it).apply() }
+        section("見た目")
+        note("どれも、元の Desktop Bounce の DVD ロゴ（斜めの文字＋円盤）が土台です。タップで切り替わります。")
+        styleGrid(s.style)
+        button("画像を選ぶ（「画像」スタイルの形）") { pickImage() }
+        note("画像は、透明な所を抜いた形（透明がなければ、明るい所）がロゴの形になり、色は自動で塗られます。")
+
         label("ロゴの文字（12文字まで）")
-        root.addView(EditText(this).apply {
+        labelEdit = EditText(this).apply {
             setText(s.label)
             inputType = InputType.TYPE_CLASS_TEXT
             setSingleLine()
@@ -102,7 +132,21 @@ class MainActivity : Activity() {
                     p.edit().putString(AppSettings.LABEL, e?.toString()?.take(12) ?: "DVD").apply()
                 }
             })
-        })
+        }
+        root.addView(labelEdit)
+        val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (t in listOf("DVD", "VHS", "CD", "BD", "LD", "4K")) {
+            presets.addView(Button(this).apply {
+                text = t; isAllCaps = false
+                setOnClickListener { labelEdit.setText(t) }
+            }, LinearLayout.LayoutParams(0, dp(46), 1f))
+        }
+        root.addView(presets)
+
+        section("基本")
+        switch("一時停止", s.paused) { p.edit().putBoolean(AppSettings.PAUSED, it).apply() }
+        slider("速さ", 20f, 400f, 5f, s.speedDp, "dp/秒") { p.edit().putFloat(AppSettings.SPEED, it).apply() }
+        slider("ロゴの大きさ（高さ）", 24f, 120f, 2f, s.logoHeightDp, "dp") { p.edit().putFloat(AppSettings.SIZE, it).apply() }
 
         section("ウィンドウとの関わり")
         radio("窓がロゴにぶつかったとき", listOf(
@@ -116,7 +160,7 @@ class MainActivity : Activity() {
         switch("分割画面・小窓を壁にする", s.wallWindows) { p.edit().putBoolean(AppSettings.WALL_WINDOWS, it).apply() }
         switch("ステータスバー・ナビゲーションバーの内側で跳ねる", s.insetBars) { p.edit().putBoolean(AppSettings.INSET_BARS, it).apply() }
 
-        section("見た目・電池")
+        section("色・電池")
         radio("色", listOf(
             "当たるたびに変える" to ColorMode.PER_BOUNCE,
             "虹色にゆっくり変える" to ColorMode.RAINBOW,
@@ -132,6 +176,30 @@ class MainActivity : Activity() {
         button("設定をもとに戻す") {
             AppSettings.reset(this)
             recreate()
+        }
+    }
+
+
+    private fun styleGrid(current: LogoStyle) {
+        val mask = CustomLogo.loadMask(this)
+        var row: LinearLayout? = null
+        LogoStyle.values().forEachIndexed { i, st ->
+            if (i % 2 == 0) {
+                row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                root.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(136)))
+            }
+            val card = StylePreview(this, st, mask).apply {
+                chosen = st == current
+                setOnClickListener {
+                    if (st == LogoStyle.IMAGE && !CustomLogo.exists(this@MainActivity)) { pickImage(); return@setOnClickListener }
+                    AppSettings.prefs(this@MainActivity).edit().putString(AppSettings.STYLE, st.name).apply()
+                    previews.forEach { it.chosen = it.style == st }
+                }
+            }
+            previews += card
+            row!!.addView(card, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                setMargins(dp(4), dp(4), dp(4), dp(4))
+            })
         }
     }
 
@@ -196,7 +264,7 @@ class MainActivity : Activity() {
     private fun <T> radio(name: String, options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
         label(name)
         val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        options.forEachIndexed { i, (text, v) ->
+        options.forEach { (text, v) ->
             group.addView(RadioButton(this).apply {
                 this.id = View.generateViewId(); this.text = text; textSize = 15f
                 isChecked = v == selected; setPadding(dp(6), dp(8), 0, dp(8))
@@ -204,5 +272,9 @@ class MainActivity : Activity() {
             })
         }
         root.addView(group)
+    }
+
+    companion object {
+        private const val REQ_IMAGE = 42
     }
 }

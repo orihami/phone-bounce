@@ -19,6 +19,8 @@ class AppSettings(
     val fps60: Boolean,          // false なら 30fps（省電力）
     val paused: Boolean,
     val label: String,
+    val style: LogoStyle,
+    val imageVersion: Int,       // 「画像」スタイルの画像を差し替えるたびに増える（常駐の本体が読み直す合図）
 ) {
     companion object {
         const val FILE = "phonebounce"
@@ -34,6 +36,8 @@ class AppSettings(
         const val FPS60 = "fps60"
         const val PAUSED = "paused"
         const val LABEL = "label"
+        const val STYLE = "style"
+        const val IMG_VER = "imageVersion"
 
         fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
@@ -52,6 +56,8 @@ class AppSettings(
                 fps60 = p.getBoolean(FPS60, true),
                 paused = p.getBoolean(PAUSED, false),
                 label = (p.getString(LABEL, null) ?: "DVD").ifBlank { "DVD" }.take(12),
+                style = enumOf(p.getString(STYLE, null), LogoStyle.CLASSIC),
+                imageVersion = p.getInt(IMG_VER, 0),
             )
         }
 

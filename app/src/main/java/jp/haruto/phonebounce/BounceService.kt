@@ -50,6 +50,7 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
     private var accDt = 0f
     private var pollIn = 0f
     private var windowsDirty = true
+    private var loadedImageVersion = -1
 
     private val frame = Choreographer.FrameCallback { onFrame(it) }
 
@@ -67,8 +68,8 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         prefs = AppSettings.prefs(this)
         prefs.registerOnSharedPreferenceChangeListener(this)
-        applySettings()
         addOverlay()
+        applySettings()
         registerReceiver(
             screenReceiver,
             IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) },
@@ -108,7 +109,11 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         val d = resources.displayMetrics.density
         params.speed = c.speedDp * d
         params.logoH = c.logoHeightDp * d
-        params.logoW = params.logoH * 2f
+        if (c.imageVersion != loadedImageVersion) {   // 「画像」スタイルの画像を読み直す
+            view?.painter?.image = CustomLogo.loadMask(this)
+            loadedImageVersion = c.imageVersion
+        }
+        params.logoW = params.logoH * (view?.painter?.aspect(c.style) ?: jp.haruto.phonebounce.core.LogoGeometry.ASPECT)
         params.interference = c.interference
         params.colorMode = c.colorMode
         params.intrudeSeconds = c.intrudeSeconds
@@ -192,7 +197,7 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         sim.update(dt, bounds, obstacles, params)
         val l = sim.logo(params)
         view?.update(
-            RectF(l.l, l.t, l.r, l.b), sim.color(params), sim.translucent, c.label,
+            RectF(l.l, l.t, l.r, l.b), sim.color(params), sim.translucent, c.label, c.style,
             if (c.showWalls) obstacles.map { RectF(it.rect.l, it.rect.t, it.rect.r, it.rect.b) } else emptyList(),
             RectF(bounds.l, bounds.t, bounds.r, bounds.b), c.showWalls,
         )

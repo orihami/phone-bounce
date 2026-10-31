@@ -11,8 +11,8 @@ android {
         applicationId = "jp.haruto.phonebounce"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // 署名鍵: CI は Secret DEBUG_KEYSTORE_B64 を展開して PB_DEBUG_KEYSTORE に渡す（DreamCamera と同じ鍵）。
@@ -38,8 +38,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    // 見た目の描画テスト（Robolectric）が、Android の部品（Canvas など）を PC 上で動かすために必要
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

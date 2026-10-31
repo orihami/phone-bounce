@@ -7,6 +7,14 @@ Windows 用 Desktop Bounce のスマホ版。
 - 窓が動くとロゴが押される。勢いよくぶつかる・挟まれる・ロゴの上に窓が開く、でロゴが窓の中に入る（半透明）。一定時間で枠をすり抜けて出る
 - クリックは素通り。画面が消えている間と一時停止中は、コマ送りを止める
 
+## 見た目
+元の Desktop Bounce の DVD ロゴ（斜めの文字＋平たい円盤）が土台です。設定の画面で、見本を見ながら選べます。
+
+![見た目のバリエーション](docs/styles.png)
+
+左上から順に: クラシック（元のロゴ）／ネオン／ブラウン管／ドット／フチどり／ディスク回転／画像（自分の画像の形）。
+ロゴの文字は DVD / VHS / CD / BD / LD / 4K（または好きな文字）に変えられます。
+
 ## 入れ方
 最新版: https://github.com/orihami/phone-bounce/releases/latest/download/PhoneBounce.apk
 
@@ -20,7 +28,8 @@ Windows 用 Desktop Bounce のスマホ版。
 （`AccessibilityNodeInfo` や `rootInActiveWindow` は、コードのどこでも呼んでいない）。通信もしない（INTERNET 権限なし）。
 
 ## 仕組み
-- `core/` … Android に依存しない動きの計算（反射・押し出し・侵入・脱出）。`./gradlew testDebugUnitTest` で PC 上でテストできる
+- `core/` … Android に依存しない動きの計算（反射・押し出し・侵入・脱出）とロゴの寸法（`LogoGeometry`）。`./gradlew testDebugUnitTest` で PC 上でテストできる
+- `LogoPainter` … ロゴの描画（スタイルごと）。`LogoRenderTest`（Robolectric）で PC 上でも描ける
 - `BounceService` … アクセシビリティサービス。透明な重ね表示（TYPE_ACCESSIBILITY_OVERLAY、タッチ素通り）にロゴを描き、窓の位置を読んで `core` に渡す
 - `MainActivity` … 設定の画面。`PauseTileService` … クイック設定のタイル
 
