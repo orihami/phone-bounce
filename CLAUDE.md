@@ -9,14 +9,15 @@ DVD ロゴが、スマホで見えているウィンドウの枠（キーボー�
 
 ## 構成
 - `app/src/main/java/jp/haruto/phonebounce/core/` … **Android に依存しない**動きの計算（`Sim`、`Box`、`Obstacle`、`Params`）。ここだけで動きが決まる
-- `BounceService` … アクセシビリティサービス（常駐の本体）。重ね表示にロゴを描き、`getWindows()` で窓の位置を読み、`Sim` に渡す
+- `BounceService` … アクセシビリティサービス（常駐の本体）。重ね表示にロゴを描き、`getWindows()` で窓の位置、`ScreenScanner` で部品の枠（別スレッド・間引き）を読み、`Sim` に渡す
 - `LogoPainter`（ロゴの描画。形は `core/LogoGeometry` ＝ 元の Desktop Bounce のロゴの実測）、`LogoStyle`（見た目の種類）、`CustomLogo`（「画像」スタイルの画像）、`StylePreview`（設定画面の見本）
 - `LogoView`、`MainActivity`（設定。XML を使わずコードで組む）、`PauseTileService`、`AppSettings`
+- 設定画面: `MainActivity`（部品は `Ui.kt`）。`MainScreenTest` が `PB_PREVIEW_DIR` に `main.png`（画面全体）を書き出す。見た目を変えたら目で確かめる
 - 見た目のテスト: `LogoRenderTest`（Robolectric。環境変数 `PB_PREVIEW_DIR` を指定すると、全スタイルを並べた画像 `styles.png` を書き出す。見た目を変えたらこれで目で確かめ、`docs/styles.png` を更新する）
 - テスト: `app/src/test/.../core/SimTest.kt`（動きの核。実機が無くても確かめられる。**動きを変えたら必ずテストを足す・直す**）
 
 ## 守ること
-- **画面の中身を読まない。** `AccessibilityNodeInfo`・`rootInActiveWindow`・イベントの中身（文字）は使わない。使うのは窓の位置と大きさだけ。INTERNET 権限は付けない
+- **画面の文字・入力内容・説明文・ID を読まない。** 使うのは窓と部品の位置・大きさ・種類・見えているか・押せるかだけ。`AccessibilityNodeInfo` に触れてよいのは `ScreenScanner.kt` だけ（`rootInActiveWindow`・イベントの中身も使わない）。`PrivacyGuardTest` が守っているので、通らないテストを書き換えて通さない。INTERNET 権限は付けない
 - ユーザーの好み: 隠れた操作より見えるボタン。絵を描き足す装飾（泡・ステッカーなど）は入れない（見た目のバリエーションは、元のロゴの形を土台にした描き方の違いだけ）
 - **公開リポジトリ**: 秘密（鍵・トークン）、NAS や機械の内部情報（IP・ホスト名・共有名）は、コードにも docs にも HANDOFF.md にも書かない
 - 実機で確かめていないことは「未確認」と書く（ここでは実機が無い）

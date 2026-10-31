@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ウィンドウ（キーボード・分割画面・小窓）の位置だけを使う。
-  画面の中身（文字・入力内容）は読まない: getRootInActiveWindow も AccessibilityNodeInfo も、コードのどこでも呼んでいない。
-  canRetrieveWindowContent は、ウィンドウ一覧（getWindows）を使うために Android が要求するもの。
+  窓（キーボード・分割画面・小窓）と、画面の部品（ボタン・画像など）の「位置・大きさ・種類」だけを使う。
+  文字の中身・入力内容・説明文・ID は読まない（ScreenScanner.kt だけが部品に触れ、PrivacyGuardTest が確かめる）。
+  部品を壁にする設定が入っているときだけ、画面の変化の合図を多めに受け取る（BounceService が切り替える）。
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowsChanged|typeWindowStateChanged"

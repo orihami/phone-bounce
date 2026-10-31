@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Phone Bounce</string>
     <string name="tile_label">跳ねるロゴ</string>
-    <string name="service_description">画面に見えているウィンドウ（キーボード・分割画面・小窓）の位置だけを使って、ロゴを跳ね返らせます。画面の文字や入力した内容は読み取りません。</string>
+    <string name="service_description">ロゴを画面の上で跳ね返らせるために、ウィンドウ（キーボード・分割画面・小窓）と画面の部品（ボタン・画像など）の位置・大きさ・種類だけを使います。画面の文字や入力した内容は読み取りません。</string>
 </resources>

@@ -14,6 +14,10 @@ class AppSettings(
     val intrudeSeconds: Float,   // 窓の中にいる時間（秒）
     val wallIme: Boolean,        // キーボードを壁にする
     val wallWindows: Boolean,    // 分割画面・小窓を壁にする
+    val wallElements: Boolean,   // 画面の部品（ボタン・画像など）を壁にする
+    val elemControls: Boolean,   // 部品のうち、ボタン・入力欄・押せるもの
+    val elemImages: Boolean,     // 部品のうち、画像・動画
+    val elemText: Boolean,       // 部品のうち、文字の枠（位置だけ。中身は読まない）
     val insetBars: Boolean,      // ステータスバー・ナビゲーションバーの内側で跳ねる
     val showWalls: Boolean,      // 壁を表示（確認用）
     val fps60: Boolean,          // false なら 30fps（省電力）
@@ -31,6 +35,10 @@ class AppSettings(
         const val INTRUDE_SEC = "intrudeSeconds"
         const val WALL_IME = "wallIme"
         const val WALL_WINDOWS = "wallWindows"
+        const val WALL_ELEMENTS = "wallElements"
+        const val ELEM_CONTROLS = "elemControls"
+        const val ELEM_IMAGES = "elemImages"
+        const val ELEM_TEXT = "elemText"
         const val INSET_BARS = "insetBars"
         const val SHOW_WALLS = "showWalls"
         const val FPS60 = "fps60"
@@ -51,6 +59,10 @@ class AppSettings(
                 intrudeSeconds = p.getFloat(INTRUDE_SEC, 6f),
                 wallIme = p.getBoolean(WALL_IME, true),
                 wallWindows = p.getBoolean(WALL_WINDOWS, true),
+                wallElements = p.getBoolean(WALL_ELEMENTS, true),
+                elemControls = p.getBoolean(ELEM_CONTROLS, true),
+                elemImages = p.getBoolean(ELEM_IMAGES, true),
+                elemText = p.getBoolean(ELEM_TEXT, false),
                 insetBars = p.getBoolean(INSET_BARS, true),
                 showWalls = p.getBoolean(SHOW_WALLS, false),
                 fps60 = p.getBoolean(FPS60, true),

@@ -76,6 +76,13 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
 
     val translucent: Boolean get() = mode == INTRUDED
 
+    /** 画面の部品に重なって、すり抜けている最中か（描くときに、少しうすくする） */
+    var ghosting = false
+        private set
+
+    private var lastList: List<Obstacle>? = null
+    private var ghosts: Set<Obstacle> = emptySet()
+
     fun logo(p: Params): Box = Box(x, y, x + p.logoW, y + p.logoH)
 
     /** ロゴの色（ARGB） */
@@ -92,6 +99,9 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         timer = 0f
         prev = emptyMap()
         sinceChange.clear()
+        lastList = null
+        ghosts = emptySet()
+        ghosting = false
         colorIdx = rnd.nextInt(PALETTE.size)
     }
 
@@ -100,12 +110,20 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         val dt = dt0.coerceIn(0f, 0.05f)
         normalizeSpeed(p)
         val cur = HashMap<Int, Box>()
-        for (o in obs) cur[o.id] = o.rect
+        for (o in obs) if (!o.soft) cur[o.id] = o.rect
         for (id in cur.keys) sinceChange[id] = (sinceChange[id] ?: 0f) + dt
         sinceChange.keys.retainAll(cur.keys)
 
         if (mode != INTRUDED) clampInto(bounds, p)   // 回転などで範囲が変わったら、枠の中へ戻す
-        for (o in obs) react(o, prev[o.id], bounds, obs, p)
+        // 窓や部品の一覧が新しくなったとき、いまロゴに重なっている部品は「すり抜け」にする（出るまで当たらない）
+        if (obs !== lastList) {
+            lastList = obs
+            val me = logo(p)
+            val g = HashSet<Obstacle>()
+            for (o in obs) if (o.soft && me.overlaps(o.rect)) g.add(o)
+            ghosts = g
+        }
+        for (o in obs) if (!o.soft) react(o, prev[o.id], bounds, obs, p)
         if (mode != FREE && cur[modeId] == null) mode = FREE   // 入っていた窓が閉じた: その場に出る
 
         if (mode == INTRUDED) {
@@ -121,6 +139,7 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
             if (r == null || !logo(p).overlaps(r)) mode = FREE
         }
         if (p.colorMode == ColorMode.RAINBOW) hue = (hue + 60f * dt) % 360f
+        ghosting = mode == FREE && ghosts.isNotEmpty() && ghosts.any { logo(p).overlaps(it.rect) }
         prev = cur
     }
 
@@ -162,7 +181,7 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
         val down = r.b - me.t
         fun valid(dx: Float, dy: Float): Boolean {
             val moved = me.offset(dx, dy)
-            return bounds.contains(moved) && obs.none { it.id != o.id && it.rect.overlaps(moved) }
+            return bounds.contains(moved) && obs.none { !it.soft && it.id != o.id && it.rect.overlaps(moved) }
         }
         fun apply(dx: Float, dy: Float) { x += dx; y += dy }
 
@@ -214,7 +233,7 @@ class Sim(private val rnd: java.util.Random = java.util.Random()) {
     private fun moveFree(dt: Float, bounds: Box, obs: List<Obstacle>, p: Params) {
         val w = p.logoW
         val h = p.logoH
-        fun blocked(o: Obstacle) = !(mode == ESCAPING && o.id == modeId)
+        fun blocked(o: Obstacle) = !(mode == ESCAPING && o.id == modeId) && !(o.soft && ghosts.contains(o))
 
         x += vx * dt
         var hx = false

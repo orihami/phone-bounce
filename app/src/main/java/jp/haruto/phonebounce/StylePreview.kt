@@ -11,7 +11,7 @@ import android.view.View
 /** 設定画面の見本。見た目のスタイルを、そのまま小さく描く（ブラウン管・ディスク回転は動く）。 */
 class StylePreview(ctx: Context, val style: LogoStyle, image: Bitmap?) : View(ctx) {
     private val painter = LogoPainter().also { it.image = image }
-    private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0C0C11.toInt() }
+    private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF050508.toInt() }
     private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF1F1EE.toInt(); isFakeBoldText = true }
     private val note = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF9B9BA8.toInt() }

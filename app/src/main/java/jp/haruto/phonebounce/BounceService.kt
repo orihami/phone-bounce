@@ -9,6 +9,9 @@ import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.PowerManager
 import android.view.Choreographer
 import android.view.Gravity
@@ -16,6 +19,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import jp.haruto.phonebounce.core.ElementKinds
 import jp.haruto.phonebounce.core.Obstacle
 import jp.haruto.phonebounce.core.Params
 import jp.haruto.phonebounce.core.Box
@@ -26,10 +30,11 @@ import jp.haruto.phonebounce.core.Sim
  *
  * やっていること
  *  1. 画面いっぱいの透明な重ね表示（TYPE_ACCESSIBILITY_OVERLAY、タッチ素通り）にロゴを描く
- *  2. 画面に見えているウィンドウの「位置」だけを getWindows() で読む（キーボード・分割画面・小窓）
- *  3. 位置を core.Sim に渡して、ロゴを動かす
+ *  2. 画面に見えているウィンドウの「位置」を getWindows() で読む（キーボード・分割画面・小窓）
+ *  3. 設定で許していれば、画面の部品（ボタン・画像など）の「枠」も ScreenScanner で読む
+ *  4. 位置を core.Sim に渡して、ロゴを動かす
  *
- * 画面の文字や入力内容は読まない（AccessibilityNodeInfo・rootInActiveWindow は一切呼ばない）。
+ * 画面の文字や入力内容は読まない（部品の読み取りは ScreenScanner だけ。位置・大きさ・種類しか取らない）。
  * 画面が消えている間と、一時停止中は、コマ送りを止める（電池を使わない）。
  */
 class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -52,6 +57,34 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
     private var windowsDirty = true
     private var loadedImageVersion = -1
 
+    // 画面の部品の読み取り（別スレッド）。連続した変化は間引く。
+    private val scanner = ScreenScanner()
+    private var scanThread: HandlerThread? = null
+    private var scanHandler: Handler? = null
+    @Volatile private var softBoxes: List<Box> = emptyList()
+    @Volatile private var scanQueued = false
+    private var lastScanMs = 0L
+    private var elementsOn = false
+
+    private val scanTask = Runnable {
+        scanQueued = false
+        val c = cfg
+        if (c == null || !c.wallElements || !wantRunning()) return@Runnable
+        val ws = try { windows } catch (e: Exception) { emptyList() }
+        val minPx = 24f * resources.displayMetrics.density
+        softBoxes = scanner.scan(ws, minPx, ElementKinds(c.elemControls, c.elemImages, c.elemText))
+        lastScanMs = android.os.SystemClock.uptimeMillis()
+        windowsDirty = true
+    }
+
+    private fun requestScan() {
+        val h = scanHandler ?: return
+        if (scanQueued || cfg?.wallElements != true) return
+        scanQueued = true
+        val wait = (lastScanMs + 250 - android.os.SystemClock.uptimeMillis()).coerceAtLeast(0L) + 60L
+        h.postDelayed(scanTask, wait)
+    }
+
     private val frame = Choreographer.FrameCallback { onFrame(it) }
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -68,6 +101,7 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         prefs = AppSettings.prefs(this)
         prefs.registerOnSharedPreferenceChangeListener(this)
+        scanThread = HandlerThread("pb-scan").also { it.start(); scanHandler = Handler(it.looper) }
         addOverlay()
         applySettings()
         registerReceiver(
@@ -83,13 +117,16 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // 窓の出入り・位置の変化の合図だけを使う。イベントの中身（文字など）は見ない。
-        windowsDirty = true
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && event?.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) windowsDirty = true
+        if (wantRunning()) requestScan()
     }
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
         stopLoop()
+        scanHandler?.removeCallbacksAndMessages(null)
+        scanThread?.quitSafely()
         runCatching { unregisterReceiver(screenReceiver) }
         if (this::prefs.isInitialized) prefs.unregisterOnSharedPreferenceChangeListener(this)
         removeOverlay()
@@ -117,7 +154,23 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         params.interference = c.interference
         params.colorMode = c.colorMode
         params.intrudeSeconds = c.intrudeSeconds
+        syncElementEvents(c.wallElements)
+        if (!c.wallElements) softBoxes = emptyList() else requestScan()
         windowsDirty = true
+    }
+
+    /** 部品を壁にする設定のときだけ、画面の変化の合図（中身は見ない）を多めに受け取る */
+    private fun syncElementEvents(on: Boolean) {
+        if (on == elementsOn) return
+        elementsOn = on
+        val info = serviceInfo ?: return
+        val extra = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or AccessibilityEvent.TYPE_VIEW_SCROLLED
+        val base = AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        info.eventTypes = if (on) base or extra else base
+        info.flags = if (on) info.flags or AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+                     else info.flags and AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS.inv()
+        info.notificationTimeout = if (on) 100 else 0
+        serviceInfo = info
     }
 
     private fun wantRunning(): Boolean = screenOn && cfg?.paused == false
@@ -197,7 +250,7 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
         sim.update(dt, bounds, obstacles, params)
         val l = sim.logo(params)
         view?.update(
-            RectF(l.l, l.t, l.r, l.b), sim.color(params), sim.translucent, c.label, c.style,
+            RectF(l.l, l.t, l.r, l.b), sim.color(params), sim.translucent || sim.ghosting, c.label, c.style,
             if (c.showWalls) obstacles.map { RectF(it.rect.l, it.rect.t, it.rect.r, it.rect.b) } else emptyList(),
             RectF(bounds.l, bounds.t, bounds.r, bounds.b), c.showWalls,
         )
@@ -236,6 +289,7 @@ class BounceService : AccessibilityService(), SharedPreferences.OnSharedPreferen
             }
             if (ok) list += Obstacle(w.id, Box(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat()))
         }
+        if (c.wallElements) for (b in softBoxes) list += Obstacle(Obstacle.SOFT_ID, b, soft = true)
         obstacles = list
     }
 }

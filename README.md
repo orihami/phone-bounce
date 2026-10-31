@@ -12,6 +12,8 @@ Windows 用 Desktop Bounce のスマホ版。
 
 ![見た目のバリエーション](docs/styles.png)
 
+![設定画面](docs/settings.png)
+
 左上から順に: クラシック（元のロゴ）／ネオン／ブラウン管／ドット／フチどり／ディスク回転／画像（自分の画像の形）。
 ロゴの文字は DVD / VHS / CD / BD / LD / 4K（または好きな文字）に変えられます。
 
@@ -24,16 +26,19 @@ Windows 用 Desktop Bounce のスマホ版。
 3. （任意）電池の最適化を除外する。クイック設定に「跳ねるロゴ」のタイルを足すと、一時停止・再開できる
 
 ## プライバシー
-使うのは、ウィンドウの **位置と大きさだけ**（`AccessibilityService.getWindows()`）。画面の文字・入力内容は読まない
-（`AccessibilityNodeInfo` や `rootInActiveWindow` は、コードのどこでも呼んでいない）。通信もしない（INTERNET 権限なし）。
+使うのは、ウィンドウと画面の部品（ボタン・画像など）の **位置・大きさ・種類（クラス名）・見えているか・押せるか** だけ。
+画面の文字・入力内容・説明文・ID は読まない（`core/UiScan.kt` の `UiNode` に、その項目が無い）。
+`AccessibilityNodeInfo` に触れるのは `ScreenScanner.kt` だけで、`PrivacyGuardTest` が「読んではいけない項目に触れていないこと」を確かめる（CI も止まる）。
+`rootInActiveWindow` は使わない。通信もしない（INTERNET 権限なし）。設定で「画面の部品」をオフにすると、窓の位置だけになる。
 
 ## 仕組み
 - `core/` … Android に依存しない動きの計算（反射・押し出し・侵入・脱出）とロゴの寸法（`LogoGeometry`）。`./gradlew testDebugUnitTest` で PC 上でテストできる
 - `LogoPainter` … ロゴの描画（スタイルごと）。`LogoRenderTest`（Robolectric）で PC 上でも描ける
 - `BounceService` … アクセシビリティサービス。透明な重ね表示（TYPE_ACCESSIBILITY_OVERLAY、タッチ素通り）にロゴを描き、窓の位置を読んで `core` に渡す
-- `MainActivity` … 設定の画面。`PauseTileService` … クイック設定のタイル
+- `ScreenScanner` … 画面の部品の枠を読む（アクセシビリティの木をたどる）。`core/UiScan` が「どの部品を壁にするか」を選ぶ
+- `MainActivity`・`Ui.kt` … 設定の画面（暗い配色。上の見本は実際に跳ねる）。`PauseTileService` … クイック設定のタイル
 
-「避ける窓」は、キーボード（入力メソッド）と、画面の 90% 未満の大きさのアプリ窓（分割画面・小窓・PiP）。全画面のアプリ本体は「背景」なので避けない。
+「避けるもの」は、画面の部品（ボタン・画像・入力欄。画面の 35% 以下の大きさのもの。ロゴと重なって始まったものは、離れるまですり抜ける）と、キーボード（入力メソッド）と、画面の 90% 未満の大きさのアプリ窓（分割画面・小窓・PiP）。全画面のアプリ本体は「背景」なので避けない。
 
 ## ビルド
 ```sh

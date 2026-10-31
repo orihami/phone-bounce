@@ -10,15 +10,12 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
-import android.widget.Button
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import jp.haruto.phonebounce.core.ColorMode
@@ -26,10 +23,14 @@ import jp.haruto.phonebounce.core.Interference
 
 /** 設定の画面。常駐の本体（BounceService）は、ここでの変更をすぐ反映する。 */
 class MainActivity : Activity() {
-    private lateinit var status: TextView
-    private lateinit var battery: TextView
     private lateinit var root: LinearLayout
     private lateinit var labelEdit: EditText
+    private lateinit var statusDot: View
+    private lateinit var statusTitle: TextView
+    private lateinit var statusSub: TextView
+    private lateinit var statusButton: TextView
+    private lateinit var statusHint: TextView
+    private lateinit var batteryRow: LinearLayout
     private val previews = ArrayList<StylePreview>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,10 +54,15 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         val on = serviceEnabled()
-        status.text = if (on) "● 常駐：オン（再起動しても自動で動きます）" else "○ 常駐：オフ（下のボタンでオンにします）"
-        status.setTextColor(if (on) 0xFF3DFF7A.toInt() else 0xFFFFD400.toInt())
+        statusDot.background = roundRect(this, if (on) Pal.ON else Pal.WARN, 8f)
+        statusTitle.text = if (on) "常駐中" else "まだオフです"
+        statusSub.text = if (on) "再起動しても自動で動きます" else "アクセシビリティでオンにすると動き出します"
+        statusButton.text = if (on) "アクセシビリティの設定を開く" else "オンにする"
+        statusButton.background = if (on) roundRect(this, 0x00000000, 14f, Pal.LINE) else roundRect(this, Pal.ACCENT, 14f)
+        statusButton.setTextColor(if (on) Pal.TEXT else Pal.INK)
+        statusHint.visibility = if (on) View.GONE else View.VISIBLE
         val ignoring = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        battery.text = if (ignoring) "電池の最適化：除外済み" else "電池の最適化：まだ（除外すると、システムに止められにくくなります）"
+        batteryRow.visibility = if (ignoring) View.GONE else View.VISIBLE
     }
 
     // ---------------- 画像を選ぶ ----------------
@@ -87,107 +93,158 @@ class MainActivity : Activity() {
 
     // ---------------- 画面づくり ----------------
 
+    private fun lp(top: Int = 0, h: Int = LinearLayout.LayoutParams.WRAP_CONTENT) =
+        LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, h).apply { topMargin = dp(top) }
+
+    private fun card(title: String?, top: Int = 14, fill: Card.() -> Unit) {
+        val c = Card(this)
+        if (title != null) c.addView(cardTitle(this, title))
+        c.fill()
+        root.addView(c, lp(top))
+    }
+
     private fun build() {
-        val scroll = ScrollView(this)
+        window.statusBarColor = Pal.BG
+        window.navigationBarColor = Pal.BG
+        val scroll = ScrollView(this).apply { setBackgroundColor(Pal.BG); isFillViewport = true; clipToPadding = false }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(24), dp(18), dp(32))
+            setPadding(dp(16), dp(28), dp(16), dp(36))
         }
         scroll.addView(root)
         setContentView(scroll)
         val p = AppSettings.prefs(this)
         val s = AppSettings.load(this)
 
-        title("Phone Bounce", 24)
-        text("画面に見えているウィンドウ（キーボード・分割画面・小窓）の枠で跳ね返り続けるロゴです。")
+        root.addView(label(this, "Phone Bounce", 28f, Pal.TEXT, true))
+        root.addView(label(this, "スマホの画面で跳ね続ける、DVD のロゴ。", 14f, Pal.SUB).apply { setPadding(0, dp(2), 0, dp(14)) })
+        root.addView(HeroView(this), lp(0, dp(190)))
 
-        status = text("", 16).apply { setPadding(0, dp(12), 0, dp(4)) }
-        button("アクセシビリティの設定を開く") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        note(
-            "「Phone Bounce」を選んでオンにします。\n" +
-                "オンにできない（灰色）ときは: 設定 → アプリ → Phone Bounce → 右上の︙ → 「制限付き設定を許可」をしてから、もう一度。\n" +
-                "このアプリは、ウィンドウの位置だけを使います。画面の文字や入力した内容は読み取りません。",
-        )
-        battery = text("", 14).apply { setPadding(0, dp(12), 0, 0) }
-        button("電池の最適化を除外する") {
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        // 状態
+        card(null) {
+            val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            statusDot = View(context)
+            head.addView(statusDot, LinearLayout.LayoutParams(dp(12), dp(12)).apply { rightMargin = dp(10) })
+            val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            statusTitle = label(context, "", 17f, Pal.TEXT, true)
+            statusSub = label(context, "", 12.5f, Pal.SUB)
+            col.addView(statusTitle); col.addView(statusSub)
+            head.addView(col)
+            addView(head)
+            statusButton = primaryButton(context, "") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            addView(statusButton, lp(12, dp(50)))
+            statusHint = label(context, "一覧の「Phone Bounce」を選んでオンにします。灰色でオンにできないときは、設定 → アプリ → Phone Bounce → 右上の︙ → 「制限付き設定を許可」をしてから、もう一度。", 12.5f, Pal.SUB).apply { setPadding(0, dp(10), 0, 0) }
+            addView(statusHint)
+            addView(ToggleRow(context, "一時停止", "クイック設定の「跳ねるロゴ」タイルからも切り替えられます", s.paused) { p.edit().putBoolean(AppSettings.PAUSED, it).apply() })
+            batteryRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(6), 0, 0) }
+            batteryRow.addView(label(context, "電池の最適化から除外すると、システムに止められにくくなります", 12.5f, Pal.SUB), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(10) })
+            batteryRow.addView(chip(context, "除外する") {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+            })
+            addView(batteryRow)
         }
-        note("クイック設定のパネルに「跳ねるロゴ」のタイルを足すと、いつでも一時停止・再開できます。")
 
-        section("見た目")
-        note("どれも、元の Desktop Bounce の DVD ロゴ（斜めの文字＋円盤）が土台です。タップで切り替わります。")
-        styleGrid(s.style)
-        button("画像を選ぶ（「画像」スタイルの形）") { pickImage() }
-        note("画像は、透明な所を抜いた形（透明がなければ、明るい所）がロゴの形になり、色は自動で塗られます。")
+        // 見た目
+        card("見た目") {
+            addView(label(context, "どれも元の Desktop Bounce のロゴ（斜めの文字＋円盤）が土台です。", 12.5f, Pal.SUB).apply { setPadding(0, 0, 0, dp(10)) })
+            styleStrip(this, s.style)
+            val bar = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(12), 0, 0) }
+            bar.addView(chip(context, "画像を選ぶ") { pickImage() })
+            addView(bar)
+            addView(label(context, "画像は、透明な所を抜いた形（透明がなければ明るい所）がロゴの形になり、色は自動で塗られます。", 12f, Pal.SUB).apply { setPadding(0, dp(8), 0, dp(14)) })
 
-        label("ロゴの文字（12文字まで）")
-        labelEdit = EditText(this).apply {
-            setText(s.label)
-            inputType = InputType.TYPE_CLASS_TEXT
-            setSingleLine()
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
-                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
-                override fun afterTextChanged(e: Editable?) {
-                    p.edit().putString(AppSettings.LABEL, e?.toString()?.take(12) ?: "DVD").apply()
-                }
+            addView(label(context, "ロゴの文字（12文字まで）", 13.5f, Pal.SUB))
+            labelEdit = EditText(context).apply {
+                setText(s.label)
+                inputType = InputType.TYPE_CLASS_TEXT
+                setSingleLine()
+                setTextColor(Pal.TEXT); setHintTextColor(Pal.SUB); textSize = 16f
+                background = roundRect(context, 0xFF0F0F15.toInt(), 12f, Pal.LINE)
+                setPadding(dp(14), dp(10), dp(14), dp(10))
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                    override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                    override fun afterTextChanged(e: Editable?) {
+                        p.edit().putString(AppSettings.LABEL, e?.toString()?.take(12) ?: "DVD").apply()
+                    }
+                })
+            }
+            addView(labelEdit, lp(6))
+            val presets = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
+            for (t in listOf("DVD", "VHS", "CD", "BD", "LD", "4K")) {
+                presets.addView(chip(context, t) { labelEdit.setText(t) }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+            }
+            addView(presets)
+        }
+
+        // 動き
+        card("動き") {
+            addView(SliderRow(context, "速さ", 20f, 400f, 5f, s.speedDp, "dp/秒") { p.edit().putFloat(AppSettings.SPEED, it).apply() })
+            addView(SliderRow(context, "ロゴの大きさ", 24f, 120f, 2f, s.logoHeightDp, "dp") { p.edit().putFloat(AppSettings.SIZE, it).apply() })
+            addView(label(context, "色", 15.5f).apply { setPadding(0, dp(12), 0, dp(6)) })
+            addView(Segmented(context, listOf("当たるたび" to ColorMode.PER_BOUNCE, "虹色" to ColorMode.RAINBOW, "ランダム" to ColorMode.RANDOM), s.colorMode) {
+                p.edit().putString(AppSettings.COLOR, it.name).apply()
             })
         }
-        root.addView(labelEdit)
-        val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (t in listOf("DVD", "VHS", "CD", "BD", "LD", "4K")) {
-            presets.addView(Button(this).apply {
-                text = t; isAllCaps = false
-                setOnClickListener { labelEdit.setText(t) }
-            }, LinearLayout.LayoutParams(0, dp(46), 1f))
+
+        // 壁
+        card("ぶつかるもの") {
+            addView(ToggleRow(context, "キーボード", "出ているあいだ、上の縁で跳ね返る", s.wallIme) { p.edit().putBoolean(AppSettings.WALL_IME, it).apply() })
+            addView(ToggleRow(context, "分割画面・小窓", "ほかのアプリの窓の枠で跳ね返る", s.wallWindows) { p.edit().putBoolean(AppSettings.WALL_WINDOWS, it).apply() })
+            val kinds = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, dp(6))
+                visibility = if (s.wallElements) View.VISIBLE else View.GONE
+            }
+            fun kindChip(t: String, key: String, on: Boolean) {
+                var cur = on
+                val c = chip(context, t, cur) {}
+                c.setOnClickListener { cur = !cur; c.paint(cur); p.edit().putBoolean(key, cur).apply() }
+                kinds.addView(c, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6) })
+            }
+            kindChip("ボタン・入力欄", AppSettings.ELEM_CONTROLS, s.elemControls)
+            kindChip("画像・動画", AppSettings.ELEM_IMAGES, s.elemImages)
+            kindChip("文字の枠", AppSettings.ELEM_TEXT, s.elemText)
+            addView(ToggleRow(context, "画面の部品", "ボタン・画像などの枠でも跳ね返る（位置と大きさだけを使います）", s.wallElements) {
+                p.edit().putBoolean(AppSettings.WALL_ELEMENTS, it).apply()
+                kinds.visibility = if (it) View.VISIBLE else View.GONE
+            })
+            addView(kinds)
+            addView(ToggleRow(context, "バーの内側で跳ねる", "ステータスバー・ナビゲーションバーに重ならない", s.insetBars) { p.edit().putBoolean(AppSettings.INSET_BARS, it).apply() })
         }
-        root.addView(presets)
 
-        section("基本")
-        switch("一時停止", s.paused) { p.edit().putBoolean(AppSettings.PAUSED, it).apply() }
-        slider("速さ", 20f, 400f, 5f, s.speedDp, "dp/秒") { p.edit().putFloat(AppSettings.SPEED, it).apply() }
-        slider("ロゴの大きさ（高さ）", 24f, 120f, 2f, s.logoHeightDp, "dp") { p.edit().putFloat(AppSettings.SIZE, it).apply() }
-
-        section("ウィンドウとの関わり")
-        radio("窓がロゴにぶつかったとき", listOf(
-            "反射だけ" to Interference.REFLECT_ONLY,
-            "押し出し（窓が動くと、ロゴが押される）" to Interference.PUSH,
-            "押し出し＋侵入（おすすめ）" to Interference.PUSH_INTRUDE,
-        ), s.interference) { p.edit().putString(AppSettings.INTERFERENCE, it.name).apply() }
-        note("侵入: 窓が勢いよくぶつかる・押した先が壁で挟まれる・ロゴの上に窓が開く、のどれかで、ロゴが窓の中に入って半透明になり、窓と一緒に運ばれます。一定時間で、その窓の枠をすり抜けて外へ出ます。")
-        slider("窓の中にいる時間", 2f, 20f, 1f, s.intrudeSeconds, "秒") { p.edit().putFloat(AppSettings.INTRUDE_SEC, it).apply() }
-        switch("キーボードを壁にする", s.wallIme) { p.edit().putBoolean(AppSettings.WALL_IME, it).apply() }
-        switch("分割画面・小窓を壁にする", s.wallWindows) { p.edit().putBoolean(AppSettings.WALL_WINDOWS, it).apply() }
-        switch("ステータスバー・ナビゲーションバーの内側で跳ねる", s.insetBars) { p.edit().putBoolean(AppSettings.INSET_BARS, it).apply() }
-
-        section("色・電池")
-        radio("色", listOf(
-            "当たるたびに変える" to ColorMode.PER_BOUNCE,
-            "虹色にゆっくり変える" to ColorMode.RAINBOW,
-            "当たるたびにランダム" to ColorMode.RANDOM,
-        ), s.colorMode) { p.edit().putString(AppSettings.COLOR, it.name).apply() }
-        radio("なめらかさ", listOf("60fps（なめらか）" to true, "30fps（省電力）" to false), s.fps60) {
-            p.edit().putBoolean(AppSettings.FPS60, it).apply()
+        card("窓がぶつかってきたとき") {
+            addView(Segmented(context, listOf("反射だけ" to Interference.REFLECT_ONLY, "押し出し" to Interference.PUSH, "押し出し＋侵入" to Interference.PUSH_INTRUDE), s.interference) {
+                p.edit().putString(AppSettings.INTERFERENCE, it.name).apply()
+            })
+            addView(label(context, "侵入: 窓が勢いよくぶつかる・押した先が壁で挟まれる・ロゴの上に窓が開く、のどれかで、ロゴが窓の中に入って半透明になり、窓と一緒に運ばれます。一定時間で、窓の枠をすり抜けて外へ出ます。", 12.5f, Pal.SUB).apply { setPadding(0, dp(10), 0, 0) })
+            addView(SliderRow(context, "窓の中にいる時間", 2f, 20f, 1f, s.intrudeSeconds, "秒") { p.edit().putFloat(AppSettings.INTRUDE_SEC, it).apply() })
         }
-        switch("壁を表示（確認用）", s.showWalls) { p.edit().putBoolean(AppSettings.SHOW_WALLS, it).apply() }
-        note("赤い枠が、いまロゴが壁として使っている窓です。何もない所で跳ねる・窓にめり込むときは、これで確かめます。")
 
-        section("")
-        button("設定をもとに戻す") {
+        card("電池・確認") {
+            addView(label(context, "なめらかさ", 15.5f).apply { setPadding(0, 0, 0, dp(6)) })
+            addView(Segmented(context, listOf("60fps（なめらか）" to true, "30fps（省電力）" to false), s.fps60) { p.edit().putBoolean(AppSettings.FPS60, it).apply() })
+            addView(ToggleRow(context, "壁を表示（確認用）", "ロゴが壁として使っている窓・部品を赤い枠で出す", s.showWalls) { p.edit().putBoolean(AppSettings.SHOW_WALLS, it).apply() }.apply { setPadding(0, dp(14), 0, dp(8)) })
+        }
+
+        card("読み取るもの", 14) {
+            addView(label(context, "窓と、画面の部品の「位置・大きさ・種類」だけを使います。文字の中身・入力した内容・説明文・ID は読みません。インターネットの権限もありません。\n\n「画面の部品」をオフにすると、窓の位置だけになります。", 13f, Pal.SUB))
+        }
+
+        val reset = chip(this, "設定をもとに戻す") {
             AppSettings.reset(this)
             recreate()
         }
+        root.addView(reset, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(18); gravity = Gravity.CENTER_HORIZONTAL
+        })
     }
 
-
-    private fun styleGrid(current: LogoStyle) {
+    /** 見た目の見本を、横にスクロールして選ぶ */
+    private fun styleStrip(parent: LinearLayout, current: LogoStyle) {
         val mask = CustomLogo.loadMask(this)
-        var row: LinearLayout? = null
-        LogoStyle.values().forEachIndexed { i, st ->
-            if (i % 2 == 0) {
-                row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                root.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(136)))
-            }
+        val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        LogoStyle.values().forEach { st ->
             val card = StylePreview(this, st, mask).apply {
                 chosen = st == current
                 setOnClickListener {
@@ -197,81 +254,11 @@ class MainActivity : Activity() {
                 }
             }
             previews += card
-            row!!.addView(card, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-                setMargins(dp(4), dp(4), dp(4), dp(4))
-            })
+            strip.addView(card, LinearLayout.LayoutParams(dp(160), dp(124)).apply { rightMargin = dp(8) })
         }
-    }
-
-    private fun title(t: String, sp: Int) = TextView(this).apply {
-        text = t; textSize = sp.toFloat(); setTypeface(typeface, android.graphics.Typeface.BOLD)
-        setPadding(0, 0, 0, dp(6)); root.addView(this)
-    }
-
-    private fun text(t: String, sp: Int = 14) = TextView(this).apply {
-        text = t; textSize = sp.toFloat(); setPadding(0, dp(4), 0, dp(4)); root.addView(this)
-    }
-
-    private fun note(t: String) = TextView(this).apply {
-        text = t; textSize = 12.5f; setTextColor(0xFF9B9BA8.toInt()); setLineSpacing(0f, 1.25f)
-        setPadding(0, dp(2), 0, dp(6)); root.addView(this)
-    }
-
-    private fun label(t: String) = TextView(this).apply {
-        text = t; textSize = 14f; setTextColor(0xFFB8B8C4.toInt()); setPadding(0, dp(10), 0, dp(2)); root.addView(this)
-    }
-
-    private fun section(t: String) {
-        if (t.isEmpty()) { root.addView(View(this), LinearLayout.LayoutParams(1, dp(18))); return }
-        TextView(this).apply {
-            text = t; textSize = 18f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(0xFF25E8FF.toInt()); setPadding(0, dp(24), 0, dp(4)); root.addView(this)
-        }
-    }
-
-    private fun button(t: String, onClick: () -> Unit) = Button(this).apply {
-        text = t; isAllCaps = false; setOnClickListener { onClick() }
-        root.addView(this, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52)))
-    }
-
-    private fun switch(t: String, checked: Boolean, onChange: (Boolean) -> Unit) = Switch(this).apply {
-        text = t; textSize = 15f; isChecked = checked; setPadding(0, dp(10), 0, dp(10))
-        setOnCheckedChangeListener { _, v -> onChange(v) }
-        root.addView(this)
-    }
-
-    private fun slider(name: String, min: Float, max: Float, step: Float, value: Float, unit: String, onChange: (Float) -> Unit) {
-        val head = TextView(this).apply { textSize = 14f; setTextColor(0xFFB8B8C4.toInt()); setPadding(0, dp(10), 0, 0) }
-        fun show(v: Float) { head.text = "$name：${if (step < 1f) "%.1f".format(v) else v.toInt().toString()} $unit" }
-        show(value)
-        root.addView(head)
-        val bar = SeekBar(this).apply {
-            this.max = ((max - min) / step).toInt()
-            progress = ((value - min) / step).toInt().coerceIn(0, this.max)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(sb: SeekBar?, pr: Int, fromUser: Boolean) {
-                    val v = min + pr * step
-                    show(v)
-                    if (fromUser) onChange(v)
-                }
-                override fun onStartTrackingTouch(sb: SeekBar?) {}
-                override fun onStopTrackingTouch(sb: SeekBar?) {}
-            })
-        }
-        root.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)))
-    }
-
-    private fun <T> radio(name: String, options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
-        label(name)
-        val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        options.forEach { (text, v) ->
-            group.addView(RadioButton(this).apply {
-                this.id = View.generateViewId(); this.text = text; textSize = 15f
-                isChecked = v == selected; setPadding(dp(6), dp(8), 0, dp(8))
-                setOnClickListener { onSelect(v) }
-            })
-        }
-        root.addView(group)
+        val hs = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false }
+        hs.addView(strip)
+        parent.addView(hs, lp(0, dp(124)))
     }
 
     companion object {
