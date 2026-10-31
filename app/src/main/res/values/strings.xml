@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phone Bounce</string>
+    <string name="tile_label">跳ねるロゴ</string>
+    <string name="service_description">画面に見えているウィンドウ（キーボード・分割画面・小窓）の位置だけを使って、ロゴを跳ね返らせます。画面の文字や入力した内容は読み取りません。</string>
+</resources>

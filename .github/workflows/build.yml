@@ -1,0 +1,92 @@
+name: build
+
+# main への push・PR：テストとビルドの確認（APK は Actions の成果物に置くだけ）
+# タグ（例 0.1.0）の push：ビルドして GitHub Release を作る。固定リンク
+#   https://github.com/orihami/phone-bounce/releases/latest/download/PhoneBounce.apk が最新版になる
+# 手動実行で release に印を付けると、main の versionName をタグにして Release を作る（タグを push できない時用）
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release を作る（タグは versionName）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE: ${{ github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main') }}
+      # スマホに入っている版と同じ署名鍵の証明書（公開情報）。違う鍵だと上書き更新できない。DreamCamera と同じ鍵
+      EXPECTED_CERT_SHA256: 2566f8b2783a10e91a1de386cc5071266fcc24b0a92c4d0e5a3ba19c894de815
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: 署名鍵（Secret DEBUG_KEYSTORE_B64）
+        env:
+          KEYSTORE: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            if [ "$RELEASE" = "true" ]; then echo "::error::Secret DEBUG_KEYSTORE_B64 がありません（リリースには必須）"; exit 1; fi
+            echo "::warning::Secret が無いので仮の鍵で署名します（スマホに上書きできません）"; exit 0
+          fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+          echo "PB_DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+
+      - name: テスト（動きの核）
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Build
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: 確認（バージョン・署名）
+        id: check
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          NAME=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$NAME" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::タグ ${GITHUB_REF_NAME} と versionName $NAME が違います"; exit 1
+          fi
+          CERT=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+          echo "cert=$CERT"
+          if [ "$CERT" != "$EXPECTED_CERT_SHA256" ]; then
+            if [ "$RELEASE" = "true" ]; then echo "::error::署名鍵が違います"; exit 1; fi
+            echo "::warning::署名鍵がいつもと違います"
+          fi
+          cp "$APK" "PhoneBounce-$NAME-debug.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhoneBounce-${{ steps.check.outputs.name }}
+          path: PhoneBounce-*.apk
+
+      - name: Release
+        if: env.RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.check.outputs.name }}"
+          NOTES="docs/releases/${TAG}.md"
+          [ -f "$NOTES" ] || { echo "::error::$NOTES がありません"; exit 1; }
+          # 版付きの名前に加えて、いつも同じ名前のコピーも付ける（固定リンク用）
+          cp "PhoneBounce-${TAG}-debug.apk" PhoneBounce.apk
+          gh release create "$TAG" "PhoneBounce-${TAG}-debug.apk" PhoneBounce.apk --target "$GITHUB_SHA" \
+            --title "Phone Bounce ${TAG}" --notes-file "$NOTES"
