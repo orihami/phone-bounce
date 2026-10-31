@@ -5,11 +5,11 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#00000000"
-        android:pathData="M54,36C36,36 24,44 24,54s12,18 30,18 30,-8 30,-18 -12,-18 -30,-18z"
-        android:strokeColor="@color/ic_ring"
-        android:strokeWidth="5" />
+        android:fillColor="@color/ic_ring"
+        android:fillType="evenOdd"
+        android:pathData="M29.16,29L37.21,29C42.5,29 44.25,33.6 42.73,40.5C41.21,47.4 37.44,52 32.15,52L24.1,52ZM33.21,33.6L30.17,47.4L32.93,47.4C35.46,47.4 36.91,43.95 37.67,40.5C38.43,37.05 38.5,33.6 35.97,33.6ZM47.33,29L52.39,29L53.39,43.26L60.67,29L65.73,29L54,52L48.94,52ZM67.8,29L75.85,29C81.14,29 82.89,33.6 81.37,40.5C79.85,47.4 76.08,52 70.79,52L62.74,52ZM71.85,33.6L68.81,47.4L71.57,47.4C74.1,47.4 75.55,43.95 76.31,40.5C77.07,37.05 77.14,33.6 74.61,33.6Z" />
     <path
         android:fillColor="@color/ic_ring"
-        android:pathData="M38,47h5c4,0 6.5,2 6.5,7s-2.5,7 -6.5,7h-5zM43,50.5v7.5c2.4,0 3.2,-1.4 3.2,-3.7s-0.8,-3.8 -3.2,-3.8zM52,47h3.6l3.4,10 3.4,-10H66l-5.4,14h-3.2z" />
+        android:fillType="evenOdd"
+        android:pathData="M26,66.5a28,9.5 0 1,0 56,0a28,9.5 0 1,0 -56,0zM47.56,66.5a6.44,3.89 0 1,0 12.88,0a6.44,3.89 0 1,0 -12.88,0z" />
 </vector>
